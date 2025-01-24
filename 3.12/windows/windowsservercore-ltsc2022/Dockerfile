@@ -11,12 +11,19 @@ SHELL ["powershell", "-Command", "$ErrorActionPreference = 'Stop'; $ProgressPref
 # https://github.com/docker-library/python/pull/557
 ENV PYTHONIOENCODING UTF-8
 
-ENV PYTHON_VERSION 3.12.1
+ENV PYTHON_VERSION 3.12.8
+ENV PYTHON_SHA256 71bd44e6b0e91c17558963557e4cdb80b483de9b0a0a9717f06cf896f95ab598
 
 RUN $url = ('https://www.python.org/ftp/python/{0}/python-{1}-amd64.exe' -f ($env:PYTHON_VERSION -replace '[a-z]+[0-9]*$', ''), $env:PYTHON_VERSION); \
 	Write-Host ('Downloading {0} ...' -f $url); \
 	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \
 	Invoke-WebRequest -Uri $url -OutFile 'python.exe'; \
+	\
+	Write-Host ('Verifying sha256 ({0}) ...' -f $env:PYTHON_SHA256); \
+	if ((Get-FileHash python.exe -Algorithm sha256).Hash -ne $env:PYTHON_SHA256) { \
+		Write-Host 'FAILED!'; \
+		exit 1; \
+	}; \
 	\
 	Write-Host 'Installing ...'; \
 # https://docs.python.org/3/using/windows.html#installing-without-ui
@@ -28,7 +35,7 @@ RUN $url = ('https://www.python.org/ftp/python/{0}/python-{1}-amd64.exe' -f ($en
 			'PrependPath=1', \
 			'Shortcuts=0', \
 			'Include_doc=0', \
-			'Include_pip=0', \
+			'Include_pip=1', \
 			'Include_test=0' \
 		) \
 	).ExitCode; \
@@ -48,33 +55,7 @@ RUN $url = ('https://www.python.org/ftp/python/{0}/python-{1}-amd64.exe' -f ($en
 	Remove-Item python.exe -Force; \
 	Remove-Item $env:TEMP/Python*.log -Force; \
 	\
-	Write-Host 'Complete.'
-
-# if this is called "PIP_VERSION", pip explodes with "ValueError: invalid truth value '<VERSION>'"
-ENV PYTHON_PIP_VERSION 23.2.1
-# https://github.com/pypa/get-pip
-ENV PYTHON_GET_PIP_URL https://github.com/pypa/get-pip/raw/4cfa4081d27285bda1220a62a5ebf5b4bd749cdb/public/get-pip.py
-ENV PYTHON_GET_PIP_SHA256 9cc01665956d22b3bf057ae8287b035827bfd895da235bcea200ab3b811790b6
-
-RUN Write-Host ('Downloading get-pip.py ({0}) ...' -f $env:PYTHON_GET_PIP_URL); \
-	[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12; \
-	Invoke-WebRequest -Uri $env:PYTHON_GET_PIP_URL -OutFile 'get-pip.py'; \
-	Write-Host ('Verifying sha256 ({0}) ...' -f $env:PYTHON_GET_PIP_SHA256); \
-	if ((Get-FileHash 'get-pip.py' -Algorithm sha256).Hash -ne $env:PYTHON_GET_PIP_SHA256) { \
-		Write-Host 'FAILED!'; \
-		exit 1; \
-	}; \
-	\
 	$env:PYTHONDONTWRITEBYTECODE = '1'; \
-	\
-	Write-Host ('Installing pip=={0} ...' -f $env:PYTHON_PIP_VERSION); \
-	python get-pip.py \
-		--disable-pip-version-check \
-		--no-cache-dir \
-		--no-compile \
-		('pip=={0}' -f $env:PYTHON_PIP_VERSION) \
-	; \
-	Remove-Item get-pip.py -Force; \
 	\
 	Write-Host 'Verifying pip install ...'; \
 	pip --version; \
